@@ -1,0 +1,5 @@
+{
+  "name": "M-pod",
+  "description": "A dynamic vertical Cover Flow music browser for media libraries, inspired by classic iPod aesthetics.",
+  "requestFramePermissions": []
+}
