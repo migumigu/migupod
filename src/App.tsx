@@ -4,12 +4,13 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform, useSpring, useMotionValue, useMotionValueEvent } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Music, User, Settings, Loader2, ChevronRight, Search, Play, X, Server, Key, Volume2, Heart, Shuffle, Repeat, Repeat1, Pause, ListMusic, Clock, Mic2, Maximize2 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { MediaConfig, MediaItem, MediaProvider, LyricLine } from './types';
 import { fetchEmbyItems, getImageUrl as getEmbyImageUrl, validateEmbyConnection, fetchSongsForItem as fetchEmbySongs, getStreamUrl as getEmbyStreamUrl, fetchEmbyLyrics } from './services/emby';
 import { fetchPlexItems, getPlexImageUrl, validatePlexConnection, fetchPlexSongs, getPlexStreamUrl, fetchPlexLyrics } from './services/plex';
+import VerticalCoverFlow from './components/VerticalCoverFlow';
 
 type NavTab = 'Albums' | 'Artists' | 'Playlists';
 type SortBy = 'Name' | 'Date' | 'Random';
@@ -33,16 +34,14 @@ const playClickSound = (() => {
   let audioCtx: AudioContext | null = null;
   return () => {
     try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioCtx) audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
 
       oscillator.type = 'sine';
-      // Even crisper "tink" sound: much higher frequency, shorter duration
       oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
       oscillator.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.03);
 
-      // Very quiet sound
       gainNode.gain.setValueAtTime(0.015, audioCtx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.03);
 
@@ -134,7 +133,7 @@ export default function App() {
   const [loadingSongs, setLoadingSongs] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [showLyrics, setShowLyrics] = useState(false);
+
   const [panelPage, setPanelPage] = useState<'songs' | 'lyrics'>('songs');
   const [lyrics, setLyrics] = useState<LyricLine[] | null>(null);
   const [loadingLyrics, setLoadingLyrics] = useState(false);
@@ -143,44 +142,12 @@ export default function App() {
   // Display state for left controls (avatar)
   const [displayedItem, setDisplayedItem] = useState<MediaItem | null>(null);
   const activeLyricRef = useRef<HTMLParagraphElement>(null);
-  const [allowAutoScroll, setAllowAutoScroll] = useState(true);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
 
   const activeLyricIndex = lyrics ? lyrics.findIndex((line, index) => {
     const nextLine = lyrics[index + 1];
     return currentTime >= line.time && (!nextLine || currentTime < nextLine.time);
   }) : -1;
-
-  // Handle manual scroll detection
-  useEffect(() => {
-    const handleScroll = () => {
-      // When user scrolls manually, disable auto-scroll
-      setAllowAutoScroll(false);
-    };
-
-    const lyricsContainer = lyricsContainerRef.current;
-    if (lyricsContainer) {
-      lyricsContainer.addEventListener('scroll', handleScroll);
-    }
-
-    return () => {
-      if (lyricsContainer) {
-        lyricsContainer.removeEventListener('scroll', handleScroll);
-      }
-    };
-  }, [panelPage]);
-
-  // Reset auto-scroll when active lyric changes
-  useEffect(() => {
-    if (activeLyricIndex !== -1) {
-      // Only reset auto-scroll if user hasn't scrolled manually
-      // and if the active lyric actually changed
-      setAllowAutoScroll(true);
-    }
-  }, [activeLyricIndex]);
-
-  // No need for auto-scroll effect anymore, using CSS transform instead
-  // The transform is directly applied in the JSX based on activeLyricIndex
 
   // Update displayed item (for avatar) only when scrolling ends
   useEffect(() => {
@@ -200,7 +167,11 @@ export default function App() {
     if (config.provider === 'Plex') {
       return getPlexImageUrl(config, item.Thumb || item.ImageTags?.Primary || '');
     }
-    return getEmbyImageUrl(config, item.Id, item.ImageTags?.Primary || '');
+    // For Emby: use AlbumId for songs if available, otherwise use item's own Id
+    // Songs may not have their own image, use album image instead
+    const imageId = item.AlbumId || item.Id;
+    const imageTag = item.ImageTags?.Primary || '';
+    return getEmbyImageUrl(config, imageId, imageTag);
   }, [config]);
 
   // Extract dominant color from image
@@ -338,14 +309,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    console.log('useEffect依赖项变化:', {
-      config: !!config,
-      configValue: config,
-      activeTab,
-      sortConfig
-    });
     if (config) {
-      console.log('useEffect触发loadItems:', { config: !!config, activeTab, sortConfig });
       loadItems();
     }
   }, [config, activeTab, sortConfig]);
@@ -493,16 +457,14 @@ export default function App() {
       });
       
       // Try to add like action if supported
-      if ('setActionHandler' in navigator.mediaSession) {
-        try {
-          navigator.mediaSession.setActionHandler('like', () => {
-            if (currentTrack) {
-              toggleFavorite(currentTrack.Id);
-            }
-          });
-        } catch (e) {
-          console.log('Like action not supported');
-        }
+      try {
+        navigator.mediaSession.setActionHandler('like' as MediaSessionAction, () => {
+          if (currentTrack) {
+            toggleFavorite(currentTrack.Id);
+          }
+        });
+      } catch (e) {
+        console.log('Like action not supported');
       }
     }
 
@@ -593,10 +555,8 @@ export default function App() {
   }, [config]);
 
   const loadItems = async () => {
-    console.log('loadItems开始执行:', { activeTab, sortBy: sortConfig[activeTab], isLoading: isLoadingRef.current });
     if (!config || isLoadingRef.current) return;
     
-    // 设置加载状态
     isLoadingRef.current = true;
     setLoading(true);
     setError(null);
@@ -604,29 +564,23 @@ export default function App() {
     try {
       let data = await fetchItems(activeTab);
       
-      // Apply custom sorting
       const sortBy = sortConfig[activeTab];
-      console.log('应用排序:', { sortBy, itemCount: data.length });
       if (sortBy === 'Date') {
         data.sort((a, b) => new Date(b.DateCreated || 0).getTime() - new Date(a.DateCreated || 0).getTime());
       } else if (sortBy === 'Random') {
-        console.log('执行随机排序');
         data.sort(() => Math.random() - 0.5);
       } else {
         data.sort((a, b) => a.Name.localeCompare(b.Name));
       }
       
-      console.log('设置items:', { itemCount: data.length });
       setItems(data);
-      setActiveIndex(0); // Reset index on tab/sort change
+      setActiveIndex(0);
     } catch (err) {
       setError('Failed to load media library. Please check your connection.');
       console.error(err);
     } finally {
-      // 重置加载状态
       isLoadingRef.current = false;
       setLoading(false);
-      console.log('loadItems执行完成');
     }
   };
 
@@ -729,13 +683,14 @@ export default function App() {
           </div>
         ) : items.length > 0 ? (
           <>
-            <VerticalCoverFlow 
-              items={items} 
-              config={config!} 
-              activeIndex={activeIndex} 
-              setActiveIndex={setActiveIndex} 
+            <VerticalCoverFlow
+              items={items}
+              config={config!}
+              activeIndex={activeIndex}
+              setActiveIndex={setActiveIndex}
               onItemClick={handleItemClick}
               getImageUrl={getImageUrl}
+              playClickSound={playClickSound}
             />
             
               {/* Left Controls (Avatar) */}
@@ -746,13 +701,14 @@ export default function App() {
               getImageUrl={getImageUrl}
             />
 
-            {/* Right Controls (Favorite, Mode, Navigation, Playlist) */}
-            <RightControls 
+            {/* Right Controls (Favorite, Mode, Navigation, Playlist, Lyrics) */}
+            <RightControls
               isFavorite={favorites.has(currentTrack?.Id || (displayedItem || items[activeIndex]).Id)}
               onToggleFavorite={() => toggleFavorite(currentTrack?.Id || (displayedItem || items[activeIndex]).Id)}
               playMode={playMode}
               onNextMode={nextMode}
               onNext={handleNext}
+              hasCurrentTrack={!!currentTrack}
               onOpenPlaylist={() => {
                 if (currentTrack) {
                   // If playing, show the current queue
@@ -764,6 +720,15 @@ export default function App() {
                   handleItemClick(displayedItem || items[activeIndex]);
                 }
                 playClickSound();
+              }}
+              onOpenLyrics={() => {
+                if (currentTrack) {
+                  setSelectedItem(currentTrack);
+                  setSongs(queue);
+                  setPanelPage('lyrics');
+                  fetchLyrics(currentTrack);
+                  playClickSound();
+                }
               }}
             />
           </>
@@ -783,32 +748,50 @@ export default function App() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 w-full md:w-[400px] bg-black/60 backdrop-blur-3xl z-50 border-l border-white/10 flex flex-col overflow-y-auto"
+            className="fixed inset-y-0 right-0 w-full md:w-[400px] bg-white/[0.08] backdrop-blur-3xl z-50 border-l border-white/20 flex flex-col overflow-y-auto"
           >
-            {/* Blurred Background */}
+            {/* Glass Background - Dynamic cover with current track */}
             <div className="absolute inset-0 z-[-1] overflow-hidden">
+              {/* Dynamic cover background - updates with current track */}
               <img 
-                src={getImageUrl(selectedItem)} 
-                className="w-full h-full object-cover blur-[100px] opacity-30 scale-150"
+                src={getImageUrl(currentTrack || selectedItem)} 
+                className="absolute inset-0 w-full h-full object-cover scale-110"
                 alt=""
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-black/40" />
+              {/* Light frosted glass overlay */}
+              <div className="absolute inset-0 bg-white/20 backdrop-blur-md" />
+              {/* Subtle gradient for depth */}
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-black/30" />
             </div>
 
             <div className="p-6 flex items-center justify-between border-b border-white/5 pt-12 md:pt-6 relative z-10">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-lg overflow-hidden border border-white/10 shadow-2xl">
                   <img 
-                    src={getImageUrl(selectedItem)} 
+                    src={getImageUrl(currentTrack || selectedItem)} 
                     alt="" 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-serif italic line-clamp-1">{selectedItem.Name}</h2>
-                  <p className="text-[10px] uppercase tracking-widest opacity-50 truncate">{selectedItem.AlbumArtist || 'Artist'}</p>
+                  <h2 
+                    className="text-lg font-serif italic line-clamp-1"
+                    style={{
+                      textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6)'
+                    }}
+                  >
+                    {(currentTrack || selectedItem).Name}
+                  </h2>
+                  <p 
+                    className="text-[10px] uppercase tracking-widest opacity-70 truncate"
+                    style={{
+                      textShadow: '0 2px 6px rgba(0,0,0,0.8), 0 2px 12px rgba(0,0,0,0.5)'
+                    }}
+                  >
+                    {(currentTrack || selectedItem).AlbumArtist || 'Artist'}
+                  </p>
                 </div>
               </div>
               
@@ -896,17 +879,13 @@ export default function App() {
                     )}
                   </motion.div>
                 ) : (
-                  <div 
-                    className="h-full flex flex-col"
-                  >
-                    <div 
-                      className="flex-1 p-8 overflow-hidden relative"
-                    >
-                      <div 
+                  <div className="h-full flex flex-col">
+                    <div className="flex-1 p-8 overflow-hidden">
+                      <div
                         ref={lyricsContainerRef}
                         className="h-full overflow-y-auto"
-                        style={{ 
-                          scrollbarWidth: 'none', 
+                        style={{
+                          scrollbarWidth: 'none',
                           msOverflowStyle: 'none',
                           WebkitOverflowScrolling: 'touch',
                           marginRight: '-17px',
@@ -914,44 +893,48 @@ export default function App() {
                         }}
                       >
                         <div className="max-w-md mx-auto text-center">
-                          {/* Lyrics Content */}
+                          {/* Lyrics Content with glass effect */}
                           <div className="space-y-6" style={{ minHeight: '100%' }}>
                           {loadingLyrics ? (
                             <div className="py-20 flex flex-col items-center gap-4">
-                              <Loader2 className="w-8 h-8 animate-spin opacity-20" />
-                              <p className="text-[10px] uppercase tracking-widest opacity-30">Searching for lyrics...</p>
+                              <Loader2 className="w-8 h-8 animate-spin opacity-40" />
+                              <p className="text-[10px] uppercase tracking-widest opacity-40">Searching for lyrics...</p>
                             </div>
                           ) : lyrics && lyrics.length > 0 ? (
-                            <div style={{ 
-                              minHeight: '100%', 
-                              display: 'flex', 
-                              flexDirection: 'column', 
+                            <div style={{
+                              minHeight: '100%',
+                              display: 'flex',
+                              flexDirection: 'column',
                               justifyContent: 'center',
                               position: 'relative'
                             }}>
                               {/* Lyrics container with transform for scrolling */}
-                              <div 
+                              <div
                                 style={{
-                                  transform: `translateY(-${activeLyricIndex * 40}px)`,
-                                  transition: 'transform 0.3s ease-out'
+                                  transform: `translateY(-${activeLyricIndex * 48}px)`,
+                                  transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                                 }}
                               >
                                 {lyrics.map((line, i) => {
                                   const isActive = i === activeLyricIndex;
                                   return (
                                     <div key={i} className="relative py-3">
-                                      <motion.p 
+                                      <motion.p
                                         initial={false}
-                                        animate={{ 
-                                          scale: isActive ? 1.1 : 1,
-                                          opacity: isActive ? 1 : 0.3,
-                                          color: isActive ? '#34d399' : '#ffffff'
+                                        animate={{
+                                          scale: isActive ? 1.15 : 1,
+                                          opacity: isActive ? 1 : 0.5,
                                         }}
-                                        transition={{ duration: 0.3 }}
+                                        transition={{ duration: 0.3, ease: "easeOut" }}
                                         className={cn(
-                                          "text-lg font-medium leading-relaxed transition-all duration-300 font-serif italic tracking-wide",
-                                          isActive ? "text-emerald-400" : "text-white/80"
+                                          "text-xl font-medium leading-relaxed transition-all duration-300 font-serif italic tracking-wide",
+                                          isActive ? "text-white" : "text-white/70"
                                         )}
+                                        style={{
+                                          textShadow: isActive 
+                                            ? '0 2px 10px rgba(0,0,0,0.8), 0 4px 20px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.4)' 
+                                            : '0 2px 8px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.4)'
+                                        }}
                                       >
                                         {line.text}
                                       </motion.p>
@@ -964,13 +947,19 @@ export default function App() {
                             // Fallback for non-timed lyrics
                             <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                               {rawLyrics.split('\n').map((line, i) => (
-                                <p key={i} className="text-lg font-medium text-white/80 leading-relaxed py-2 font-serif italic tracking-wide">{line}</p>
+                                <p 
+                                  key={i} 
+                                  className="text-lg font-medium text-white/80 leading-relaxed py-2 font-serif italic tracking-wide"
+                                  style={{
+                                    textShadow: '0 2px 8px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.5)'
+                                  }}
+                                >{line}</p>
                               ))}
                             </div>
                           ) : (
                             <div className="py-20 space-y-4">
-                              <p className="text-lg font-medium text-white/20 leading-relaxed italic">No lyrics found for this track</p>
-                              <p className="text-[10px] uppercase tracking-widest opacity-20">
+                              <p className="text-lg font-medium text-white/30 leading-relaxed italic">No lyrics found for this track</p>
+                              <p className="text-[10px] uppercase tracking-widest opacity-30">
                                 {config?.provider === 'Plex' ? 'Plex Pass may be required for automatic lyrics' : 'Check your media server settings'}
                               </p>
                             </div>
@@ -1118,181 +1107,13 @@ export default function App() {
   );
 }
 
-const VerticalCoverFlow = React.memo(({ 
-  items, 
-  config, 
-  activeIndex, 
-  setActiveIndex,
-  onItemClick,
-  getImageUrl
-}: { 
-  items: MediaItem[], 
-  config: MediaConfig,
-  activeIndex: number,
-  setActiveIndex: (i: number) => void,
-  onItemClick: (item: MediaItem) => void,
-  getImageUrl: (item: MediaItem) => string
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const lastIndex = useRef(activeIndex);
-  const touchStartY = useRef<number>(0);
-  const touchStartTime = useRef<number>(0);
-  const isLongPress = useRef<boolean>(false);
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  // Touch start handler
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartTime.current = Date.now();
-    isLongPress.current = false;
-    
-    // Set long press timer
-    longPressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
-    }, 300); // 300ms threshold for long press
-  };
-
-  // Touch end handler
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    // Clear long press timer
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-
-    const touchEndY = e.changedTouches[0].clientY;
-    const touchDuration = Date.now() - touchStartTime.current;
-    const touchDistance = touchStartY.current - touchEndY;
-    
-    // Calculate screen height
-    const screenHeight = window.innerHeight;
-    
-    // Determine number of items to scroll
-    let scrollCount = 0;
-    
-    if (isLongPress.current) {
-      // Long press: scroll based on distance, max 5 items
-      const normalizedDistance = Math.abs(touchDistance) / screenHeight;
-      scrollCount = Math.min(Math.round(normalizedDistance * 5), 5);
-      if (touchDistance > 0) scrollCount = -scrollCount; // Negative for upward scroll
-    } else {
-      // Quick swipe: scroll only 1 item
-      if (Math.abs(touchDistance) > 50 && touchDuration < 300) {
-        scrollCount = touchDistance > 0 ? -1 : 1; // -1 for upward, 1 for downward
-      }
-    }
-    
-    // Calculate new index
-    if (scrollCount !== 0) {
-      const newIndex = Math.max(0, Math.min(items.length - 1, activeIndex - scrollCount));
-      if (newIndex !== activeIndex) {
-        setActiveIndex(newIndex);
-        playClickSound();
-        
-        // Scroll to the new index
-        if (containerRef.current) {
-          const totalItems = items.length;
-          const scrollPosition = (newIndex / (totalItems - 1)) * containerRef.current.scrollHeight;
-          containerRef.current.scrollTo({
-            top: scrollPosition,
-            behavior: 'smooth'
-          });
-        }
-      }
-    }
-  };
-
-  const { scrollYProgress } = useScroll({
-    container: containerRef,
-  });
-
-  // Precise index tracking for sound and active state
-  useMotionValueEvent(scrollYProgress, "change", (latest) => {
-    const totalItems = items.length;
-    if (totalItems <= 1) return;
-    
-    // Map 0-1 scroll progress to 0-(totalItems-1) index
-    const rawIndex = latest * (totalItems - 1);
-    const index = Math.round(rawIndex);
-    
-    // Only update and play sound if the index actually changes
-    if (index !== lastIndex.current && index >= 0 && index < totalItems) {
-      const distanceToInteger = Math.abs(rawIndex - index);
-      if (distanceToInteger < 0.2) { // Slightly wider window for more responsive feedback
-        playClickSound();
-        lastIndex.current = index;
-        setActiveIndex(index);
-      }
-    }
-  });
-
-  // Pre-render a larger range to avoid visible loading
-  const renderItems = () => {
-    // Render all items above the current active index
-    // This ensures no visible animation when scrolling up
-    const startIndex = 0;
-    const endIndex = Math.min(items.length - 1, activeIndex + 3); // Only limit items below
-    
-    return items.slice(startIndex, endIndex + 1).map((item, relativeIndex) => {
-      const actualIndex = startIndex + relativeIndex;
-      return (
-        <CoverItem 
-          key={item.Id} 
-          item={item} 
-          index={actualIndex} 
-          config={config}
-          containerRef={containerRef}
-          isActive={actualIndex === activeIndex}
-          onItemClick={onItemClick}
-          getImageUrl={getImageUrl}
-        />
-      );
-    });
-  };
-
-  return (
-    <div 
-      ref={containerRef}
-      className="h-full w-full overflow-y-scroll snap-y snap-mandatory perspective-1000"
-      style={{ 
-        scrollbarWidth: 'none', 
-        msOverflowStyle: 'none',
-        WebkitOverflowScrolling: 'touch' 
-      }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
-      <div className="flex flex-col items-center py-[50vh] -space-y-64">
-        {/* Render all items above active index without spacers */}
-        {/* This ensures no visible animation when scrolling up */}
-        {renderItems()}
-        
-        {/* Add spacer elements only for items below the current range */}
-        {Array.from({ length: Math.max(0, items.length - activeIndex - 4) }).map((_, index) => (
-          <div key={`spacer-bottom-${index}`} className="w-80 h-80 snap-center" />
-        ))}
-      </div>
-    </div>
-  );
-});
-
-interface CoverItemProps {
-  item: MediaItem;
-  index: number;
-  config: MediaConfig;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  isActive: boolean;
-  onItemClick: (item: MediaItem) => void;
-  getImageUrl: (item: MediaItem) => string;
-}
-
-const LeftControls = React.memo(({ 
-  currentItem, 
+const LeftControls = React.memo(({
+  currentItem,
   isPlaying,
   setIsPlaying,
   getImageUrl
-}: { 
-  currentItem: MediaItem, 
+}: {
+  currentItem: MediaItem,
   isPlaying: boolean,
   setIsPlaying: () => void,
   getImageUrl: (item: MediaItem) => string
@@ -1301,20 +1122,19 @@ const LeftControls = React.memo(({
 
   return (
     <div className="fixed bottom-6 left-6 z-30 flex items-center gap-4">
-      <motion.div 
+      <motion.div
         className="relative cursor-pointer group"
         onClick={() => setIsPlaying()}
       >
         <div className="relative w-24 h-24 rounded-2xl border border-white/20 p-1 bg-black overflow-hidden shadow-2xl">
-          <img 
-            src={artistImageUrl} 
-            alt="Artist" 
+          <img
+            src={artistImageUrl}
+            alt="Artist"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover rounded-xl"
           />
         </div>
-        
-        {/* Center Play/Pause Indicator */}
+
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {!isPlaying ? (
             <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/10">
@@ -1331,22 +1151,25 @@ const LeftControls = React.memo(({
   );
 });
 
-const RightControls = React.memo(({ 
+const RightControls = React.memo(({
   isFavorite,
   onToggleFavorite,
   playMode,
   onNextMode,
   onNext,
-  onOpenPlaylist
-}: { 
+  onOpenPlaylist,
+  onOpenLyrics,
+  hasCurrentTrack
+}: {
   isFavorite: boolean,
   onToggleFavorite: () => void,
   playMode: PlayMode,
   onNextMode: () => void,
   onNext: () => void,
-  onOpenPlaylist: () => void
+  onOpenPlaylist: () => void,
+  onOpenLyrics: () => void,
+  hasCurrentTrack: boolean
 }) => {
-  // Fullscreen toggle function
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(err => {
@@ -1361,7 +1184,6 @@ const RightControls = React.memo(({
 
   return (
     <div className="fixed bottom-6 right-6 z-30 flex flex-col items-center gap-6">
-      {/* Favorite Button */}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
@@ -1376,7 +1198,6 @@ const RightControls = React.memo(({
         </div>
       </motion.button>
 
-      {/* Play Mode Button */}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
@@ -1390,11 +1211,30 @@ const RightControls = React.memo(({
         </div>
       </motion.button>
 
-      {/* Playback Controls */}
+      {/* Lyrics Button */}
+      <motion.button
+        whileHover={hasCurrentTrack ? { scale: 1.1 } : {}}
+        whileTap={hasCurrentTrack ? { scale: 0.9 } : {}}
+        onClick={onOpenLyrics}
+        disabled={!hasCurrentTrack}
+        className="flex flex-col items-center gap-1 group"
+      >
+        <div className={cn(
+          "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+          hasCurrentTrack
+            ? "bg-white/5 backdrop-blur-2xl border border-white/10 hover:bg-white/10"
+            : "bg-white/5 border border-white/5 opacity-30 cursor-not-allowed"
+        )}>
+          <span className={cn(
+            "text-sm font-bold",
+            hasCurrentTrack ? "text-white/60 group-hover:text-white" : "text-white/30"
+          )}>词</span>
+        </div>
+      </motion.button>
+
       <div className="flex flex-col items-center gap-4">
         <div className="flex flex-col gap-2">
-          {/* Fullscreen Button */}
-          <motion.button 
+          <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={toggleFullscreen}
@@ -1402,8 +1242,7 @@ const RightControls = React.memo(({
           >
             <Maximize2 className="w-5 h-5 text-white/60" />
           </motion.button>
-          {/* Next Button */}
-          <motion.button 
+          <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={onNext}
@@ -1414,7 +1253,6 @@ const RightControls = React.memo(({
         </div>
       </div>
 
-      {/* Playlist Button */}
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
@@ -1425,90 +1263,6 @@ const RightControls = React.memo(({
           <ListMusic className="w-5 h-5 text-white/60 group-hover:text-white" />
         </div>
       </motion.button>
-    </div>
-  );
-});
-
-
-const CoverItem = React.memo(({ 
-  item, 
-  index, 
-  config, 
-  containerRef,
-  isActive,
-  onItemClick,
-  getImageUrl
-}: CoverItemProps) => {
-  // Use a separate ref for the scroll target to avoid feedback loops
-  const scrollTargetRef = useRef<HTMLDivElement>(null);
-  
-  const { scrollYProgress } = useScroll({
-    target: scrollTargetRef,
-    container: containerRef as React.RefObject<HTMLElement>,
-    offset: ["center end", "center start"]
-  });
-
-  // Very stable spring settings for large elements
-  const springConfig = { stiffness: 120, damping: 30, mass: 1.2 };
-  const smoothProgress = useSpring(scrollYProgress, springConfig);
-
-  // Smoother iPod style transformations with edge stacking
-  const y = useTransform(smoothProgress, [0, 0.2, 0.5, 0.8, 1], [240, 180, 0, -180, -240]);
-  const rotateX = useTransform(smoothProgress, [0, 0.2, 0.5, 0.8, 1], [65, 45, 0, -45, -65]);
-  const scale = useTransform(smoothProgress, [0, 0.4, 0.5, 0.6, 1], [0.5, 0.9, 1.3, 0.9, 0.5]);
-  const opacity = useTransform(smoothProgress, [0, 0.1, 0.5, 0.9, 1], [0, 0.8, 1, 0.8, 0]);
-  
-  // Discrete zIndex mapping to avoid rapid layout recalculations
-  const zIndex = useTransform(smoothProgress, [0, 0.45, 0.5, 0.55, 1], [1, 50, 100, 50, 1]);
-
-  const imageUrl = getImageUrl(item);
-
-  return (
-    <div 
-      ref={scrollTargetRef} 
-      className="relative w-80 h-80 flex items-center justify-center snap-center"
-    >
-      <motion.div
-        style={{
-          y,
-          scale,
-          rotateX,
-          opacity,
-          zIndex,
-          willChange: 'transform, opacity'
-        }}
-        onClick={() => onItemClick(item)}
-        className="relative w-full h-full preserve-3d group cursor-pointer"
-      >
-        {/* CD Case Effect */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-3xl z-10 pointer-events-none border border-white/20 shadow-inner" />
-        
-        {/* Image */}
-        <img
-          src={imageUrl}
-          alt={item.Name}
-          referrerPolicy="no-referrer"
-          className="w-full h-full object-cover rounded-3xl shadow-[0_40px_80px_rgba(0,0,0,0.8)]"
-          loading="lazy"
-        />
-
-        {/* Reflection */}
-        <div className="absolute top-[102%] left-0 right-0 h-32 bg-gradient-to-b from-white/20 to-transparent opacity-30 blur-3xl -scale-y-100 pointer-events-none rounded-3xl" />
-
-        {/* Info Overlay (visible when centered) */}
-        <motion.div 
-          style={{ 
-            opacity: useTransform(scrollYProgress, [0.49, 0.5, 0.51], [0, 1, 0]),
-            y: useTransform(scrollYProgress, [0.49, 0.5, 0.51], [40, 0, -40])
-          }}
-          className="absolute -bottom-32 left-0 right-0 text-center flex flex-col items-center gap-3 pointer-events-none px-4"
-        >
-          <h3 className="text-3xl font-serif italic line-clamp-1 text-white drop-shadow-[0_4px_20px_rgba(0,0,0,1)]">{item.Name}</h3>
-          <p className="text-[11px] uppercase tracking-[0.5em] opacity-70 line-clamp-1 font-bold text-white/90">
-            {item.AlbumArtist || item.ArtistNames?.join(', ') || 'Unknown Artist'}
-          </p>
-        </motion.div>
-      </motion.div>
     </div>
   );
 });
