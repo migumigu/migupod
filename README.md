@@ -50,42 +50,6 @@
 - **全屏模式** - 一键进入全屏浏览
 - **本地存储** - 配置和排序偏好自动保存
 
-## 技术栈
-
-- **React 19** - 用户界面框架
-- **TypeScript** - 类型安全的 JavaScript
-- **Vite** - 构建工具和开发服务器
-- **Tailwind CSS** - 原子化 CSS 框架
-- **Framer Motion** - 动画库
-- **Lucide React** - 图标库
-
-## 快速开始
-
-### 环境要求
-- Node.js 18+
-- npm 或 yarn
-
-### 安装依赖
-```bash
-npm install
-```
-
-### 开发模式
-```bash
-npm run dev
-```
-服务将启动在 http://localhost:3000
-
-### 构建生产版本
-```bash
-npm run build
-```
-
-### 类型检查
-```bash
-npm run lint
-```
-
 ## 使用指南
 
 ### 首次使用
@@ -108,23 +72,6 @@ npm run lint
 ### 歌词查看
 - 播放歌曲后，点击右侧"词"按钮
 - 或在歌曲列表页点击麦克风图标切换
-
-## 项目结构
-
-```
-src/
-├── components/
-│   └── VerticalCoverFlow.tsx  # 垂直封面流组件
-├── services/
-│   ├── emby.ts                # Emby API 服务
-│   └── plex.ts                # Plex API 服务
-├── lib/
-│   └── utils.ts               # 工具函数
-├── types.ts                   # TypeScript 类型定义
-├── App.tsx                    # 主应用组件
-├── main.tsx                   # 应用入口
-└── index.css                  # 全局样式
-```
 
 ## 配置说明
 
@@ -158,38 +105,6 @@ docker pull aidedaijiayang/migupod:latest
 # 运行容器
 docker run -d -p 3000:80 --name migupod aidedaijiayang/migupod:latest
 ```
-
-### 本地构建
-
-**Linux/macOS:**
-```bash
-# 本地构建（单架构）
-./docker-build.sh
-
-# 构建并推送到 Docker Hub
-./docker-build.sh push
-```
-
-**Windows:**
-```batch
-REM 本地构建（单架构）
-docker-build.bat
-
-REM 构建并推送到 Docker Hub
-docker-build.bat push
-```
-
-### 多架构支持
-
-镜像支持以下架构：
-- `linux/amd64` - x86_64 架构
-- `linux/arm64` - ARM64 架构（如 Apple Silicon、树莓派）
-
-### 环境变量
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `PORT` | 服务端口 | `80` |
 
 ### Docker Compose 示例
 
