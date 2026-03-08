@@ -125,25 +125,6 @@ services:
       retries: 3
 ```
 
-## GitHub Actions 自动发布
-
-项目配置了 GitHub Actions 工作流，支持以下触发方式：
-
-- **Push 到 main/master 分支** - 自动构建并推送 `latest` 标签
-- **Push 标签** - 自动构建并推送版本标签（如 `v1.0.0`）
-- **Pull Request** - 仅构建，不推送
-
-### 配置 Secrets
-
-在 GitHub 仓库设置中添加以下 Secrets：
-
-- `DOCKER_HUB_USERNAME` - Docker Hub 用户名
-- `DOCKER_HUB_ACCESS_TOKEN` - Docker Hub 访问令牌（在 Account Settings → Security 中创建）
-
-## 远程仓库
-
-- GitHub: `git@github.com:migumigu/migupod.git`
-
 ## 赞助支持
 
 如果您喜欢这个项目，可以通过以下方式赞助支持：
