@@ -50,7 +50,7 @@ const CoverItem = React.memo(({
   return (
     <div 
       ref={scrollTargetRef} 
-      className="relative w-80 h-80 flex items-center justify-center snap-center"
+      className="relative w-80 h-80 flex items-center justify-center snap-center snap-always"
     >
       <motion.div
         style={{
@@ -135,7 +135,7 @@ const VerticalCoverFlow = React.memo(({
     }, 300); // 300ms threshold for long press
   };
 
-  // Touch end handler
+  // Touch end handler - enforce one item per swipe (like scroll-snap-stop: always)
   const handleTouchEnd = (e: React.TouchEvent) => {
     // Clear long press timer
     if (longPressTimer.current) {
@@ -144,26 +144,14 @@ const VerticalCoverFlow = React.memo(({
     }
 
     const touchEndY = e.changedTouches[0].clientY;
-    const touchDuration = Date.now() - touchStartTime.current;
     const touchDistance = touchStartY.current - touchEndY;
     
-    // Calculate screen height
-    const screenHeight = window.innerHeight;
-    
-    // Determine number of items to scroll
-    let scrollCount = 0;
-    
-    // Only handle quick swipes (not long presses with manual scrolling)
-    if (!isLongPress.current) {
-      // Quick swipe: scroll only 1 item
-      if (Math.abs(touchDistance) > 50 && touchDuration < 300) {
-        scrollCount = touchDistance > 0 ? -1 : 1; // -1 for upward, 1 for downward
-      }
-    }
-    
-    // Calculate new index
-    if (scrollCount !== 0) {
-      const newIndex = Math.max(0, Math.min(items.length - 1, activeIndex - scrollCount));
+    // Always scroll only 1 item, regardless of swipe speed or distance
+    // This mimics the behavior of CSS scroll-snap-stop: always
+    if (Math.abs(touchDistance) > 30) { // Minimum threshold to detect intentional swipe
+      const scrollDirection = touchDistance > 0 ? -1 : 1; // -1 for upward, 1 for downward
+      const newIndex = Math.max(0, Math.min(items.length - 1, activeIndex - scrollDirection));
+      
       if (newIndex !== activeIndex) {
         setActiveIndex(newIndex);
         playClickSound();
