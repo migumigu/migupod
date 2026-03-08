@@ -118,6 +118,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playMode, setPlayMode] = useState<PlayMode>('Sequence');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // 用于跟踪是否正在加载，防止重复调用loadItems
   const isLoadingRef = useRef(false);
@@ -160,6 +161,16 @@ export default function App() {
 
     return () => clearTimeout(timeoutId);
   }, [activeIndex, items]);
+
+  // Track fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Provider specific helpers
   const getImageUrl = useCallback((item: MediaItem) => {
@@ -625,6 +636,77 @@ export default function App() {
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-900/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-900/10 blur-[120px] rounded-full" />
       </div>
+
+      {/* Fullscreen Top Bar - Shows when in fullscreen mode with current track info */}
+      {isFullscreen && currentTrack && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm"
+          style={{
+            paddingTop: 'env(safe-area-inset-top)',
+            height: 'calc(3.5rem + env(safe-area-inset-top))'
+          }}
+        >
+          <div className="h-full flex items-center justify-between px-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={getImageUrl(currentTrack)}
+                alt=""
+                className="w-9 h-9 rounded-lg object-cover border border-white/20 shadow-lg"
+                referrerPolicy="no-referrer"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-white line-clamp-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>
+                  {currentTrack.Name}
+                </span>
+                <span className="text-[10px] text-white/60" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                  {currentTrack.AlbumArtist || 'Unknown Artist'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Progress bar */}
+              <div className="hidden sm:flex items-center gap-2 bg-black/30 rounded-full px-3 py-1.5 backdrop-blur-md">
+                <span className="text-[10px] text-white/70 font-mono">{formatTime(currentTime)}</span>
+                <div className="w-24 h-1 bg-white/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-white/80 rounded-full transition-all duration-300"
+                    style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-white/70 font-mono">{formatTime(duration)}</span>
+              </div>
+              
+              {/* Play/Pause indicator */}
+              <div className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full backdrop-blur-md">
+                {isPlaying ? (
+                  <div className="flex gap-0.5 items-end h-4">
+                    <motion.div
+                      animate={{ height: [4, 12, 4] }}
+                      transition={{ repeat: Infinity, duration: 0.5 }}
+                      className="w-1 bg-white rounded-full"
+                    />
+                    <motion.div
+                      animate={{ height: [8, 4, 8] }}
+                      transition={{ repeat: Infinity, duration: 0.5, delay: 0.1 }}
+                      className="w-1 bg-white rounded-full"
+                    />
+                    <motion.div
+                      animate={{ height: [6, 14, 6] }}
+                      transition={{ repeat: Infinity, duration: 0.5, delay: 0.2 }}
+                      className="w-1 bg-white rounded-full"
+                    />
+                  </div>
+                ) : (
+                  <Pause className="w-4 h-4 text-white/80" />
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Floating Header */}
       <header className="fixed top-0 left-0 right-0 z-40 px-6 pt-6 pb-6 pointer-events-none">
