@@ -30,9 +30,8 @@ const CoverItem = React.memo(({
     offset: ["center end", "center start"]
   });
 
-  // Very stable spring settings for large elements
-  const springConfig = { stiffness: 120, damping: 30, mass: 1.2 };
-  const smoothProgress = useSpring(scrollYProgress, springConfig);
+  // Direct progress without spring animation for instant response
+  const smoothProgress = scrollYProgress;
 
   // Smoother iPod style transformations with edge stacking
   const y = useTransform(smoothProgress, [0, 0.2, 0.5, 0.8, 1], [240, 180, 0, -180, -240]);
@@ -135,7 +134,7 @@ const VerticalCoverFlow = React.memo(({
     }, 300); // 300ms threshold for long press
   };
 
-  // Touch end handler - enforce one item per swipe (like scroll-snap-stop: always)
+  // Touch end handler - distinguish between slow drag and fast swipe
   const handleTouchEnd = (e: React.TouchEvent) => {
     // Clear long press timer
     if (longPressTimer.current) {
@@ -144,12 +143,19 @@ const VerticalCoverFlow = React.memo(({
     }
 
     const touchEndY = e.changedTouches[0].clientY;
+    const touchDuration = Date.now() - touchStartTime.current;
     const touchDistance = touchStartY.current - touchEndY;
     
-    // Always scroll only 1 item, regardless of swipe speed or distance
-    // This mimics the behavior of CSS scroll-snap-stop: always
-    if (Math.abs(touchDistance) > 30) { // Minimum threshold to detect intentional swipe
-      const scrollDirection = touchDistance > 0 ? -1 : 1; // -1 for upward, 1 for downward
+    // Calculate velocity (pixels per millisecond)
+    const velocity = Math.abs(touchDistance) / touchDuration;
+    
+    // Fast swipe: high velocity, limit to 1 item (like scroll-snap-stop: always)
+    // Slow drag: low velocity, let CSS snap handle it naturally
+    const isFastSwipe = velocity > 0.8; // Threshold: 0.8px/ms (about 800px/s)
+    
+    if (isFastSwipe && Math.abs(touchDistance) > 50) {
+      // Fast swipe: enforce one item per swipe
+      const scrollDirection = touchDistance > 0 ? -1 : 1;
       const newIndex = Math.max(0, Math.min(items.length - 1, activeIndex - scrollDirection));
       
       if (newIndex !== activeIndex) {
@@ -167,29 +173,45 @@ const VerticalCoverFlow = React.memo(({
         }
       }
     }
+    // Slow drag: do nothing, let CSS scroll-snap handle it naturally
   };
 
   const { scrollYProgress } = useScroll({
     container: containerRef,
   });
 
-  // Precise index tracking for sound and active state
+  // Hysteresis buffer for index switching (prevents jitter at boundaries)
+  const hysteresisThreshold = 0.15; // Buffer zone: 15% of item height
+
+  // Precise index tracking with hysteresis for sound and active state
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
     const totalItems = items.length;
     if (totalItems <= 1) return;
     
     // Map 0-1 scroll progress to 0-(totalItems-1) index
     const rawIndex = latest * (totalItems - 1);
-    const index = Math.round(rawIndex);
+    const currentIndex = lastIndex.current;
+    
+    // Calculate distance to current index center
+    const distanceToCurrent = rawIndex - currentIndex;
+    
+    // Check if we should switch to adjacent index
+    let newIndex = currentIndex;
+    
+    if (distanceToCurrent > hysteresisThreshold) {
+      // Scrolled down past the buffer zone, move to next item
+      newIndex = Math.min(totalItems - 1, currentIndex + 1);
+    } else if (distanceToCurrent < -hysteresisThreshold) {
+      // Scrolled up past the buffer zone, move to previous item
+      newIndex = Math.max(0, currentIndex - 1);
+    }
+    // If within [-hysteresisThreshold, hysteresisThreshold], stay at current index
     
     // Only update and play sound if the index actually changes
-    if (index !== lastIndex.current && index >= 0 && index < totalItems) {
-      const distanceToInteger = Math.abs(rawIndex - index);
-      if (distanceToInteger < 0.2) { // Slightly wider window for more responsive feedback
-        playClickSound();
-        lastIndex.current = index;
-        setActiveIndex(index);
-      }
+    if (newIndex !== currentIndex) {
+      playClickSound();
+      lastIndex.current = newIndex;
+      setActiveIndex(newIndex);
     }
   });
 
@@ -206,18 +228,26 @@ const VerticalCoverFlow = React.memo(({
       onTouchEnd={handleTouchEnd}
     >
       <div className="flex flex-col items-center py-[50vh] -space-y-64">
-        {items.map((item, index) => (
-          <CoverItem 
-            key={item.Id} 
-            item={item} 
-            index={index} 
-            config={config}
-            containerRef={containerRef}
-            isActive={index === activeIndex}
-            onItemClick={onItemClick}
-            getImageUrl={getImageUrl}
-          />
-        ))}
+        {items.map((item, index) => {
+          // Virtual scrolling: only render items within ±10 range of active index
+          const distanceFromActive = Math.abs(index - activeIndex);
+          if (distanceFromActive > 10) {
+            // Render placeholder to maintain scroll height
+            return <div key={item.Id} className="relative w-80 h-80 flex items-center justify-center snap-center" />;
+          }
+          return (
+            <CoverItem 
+              key={item.Id} 
+              item={item} 
+              index={index} 
+              config={config}
+              containerRef={containerRef}
+              isActive={index === activeIndex}
+              onItemClick={onItemClick}
+              getImageUrl={getImageUrl}
+            />
+          );
+        })}
       </div>
     </div>
   );
