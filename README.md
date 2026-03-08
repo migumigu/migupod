@@ -153,10 +153,10 @@ Apache-2.0
 
 ```bash
 # 拉取镜像
-docker pull migumigu/migupod:latest
+docker pull aidedaijiayang/migupod:latest
 
 # 运行容器
-docker run -d -p 3000:80 --name migupod migumigu/migupod:latest
+docker run -d -p 3000:80 --name migupod aidedaijiayang/migupod:latest
 ```
 
 ### 本地构建
@@ -198,7 +198,7 @@ version: '3.8'
 
 services:
   migupod:
-    image: migumigu/migupod:latest
+    image: aidedaijiayang/migupod:latest
     container_name: migupod
     ports:
       - "3000:80"
@@ -222,8 +222,8 @@ services:
 
 在 GitHub 仓库设置中添加以下 Secrets：
 
-- `DOCKERHUB_USERNAME` - Docker Hub 用户名
-- `DOCKERHUB_TOKEN` - Docker Hub 访问令牌（在 Account Settings → Security 中创建）
+- `DOCKER_HUB_USERNAME` - Docker Hub 用户名
+- `DOCKER_HUB_ACCESS_TOKEN` - Docker Hub 访问令牌（在 Account Settings → Security 中创建）
 
 ## 远程仓库
 
