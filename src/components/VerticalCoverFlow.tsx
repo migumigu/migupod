@@ -122,23 +122,6 @@ const VerticalCoverFlow = React.memo(({
   const isLongPress = useRef<boolean>(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize scroll position to activeIndex on mount or items change
-  React.useEffect(() => {
-    if (containerRef.current && items.length > 0) {
-      // Wait for next animation frame to ensure DOM is fully rendered
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (containerRef.current) {
-            const totalItems = items.length;
-            const scrollPosition = (activeIndex / (totalItems - 1)) * containerRef.current.scrollHeight;
-            containerRef.current.scrollTop = scrollPosition;
-            lastIndex.current = activeIndex;
-          }
-        });
-      });
-    }
-  }, [items.length, activeIndex]);
-
   // Touch start handler
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;

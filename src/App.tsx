@@ -161,16 +161,12 @@ export default function App() {
     return currentTime >= line.time && (!nextLine || currentTime < nextLine.time);
   }) : -1;
 
-  // Update displayed item (for avatar) only when scrolling ends
+  // Update displayed item (for avatar) - ensure synchronization
   useEffect(() => {
-    // Clear any existing timeout
-    const timeoutId = setTimeout(() => {
-      if (items[activeIndex]) {
-        setDisplayedItem(items[activeIndex]);
-      }
-    }, 300); // Wait 300ms after last scroll event
-
-    return () => clearTimeout(timeoutId);
+    // First, immediately update when activeIndex changes (for accuracy)
+    if (items[activeIndex]) {
+      setDisplayedItem(items[activeIndex]);
+    }
   }, [activeIndex, items]);
 
   // Track fullscreen state
@@ -827,7 +823,7 @@ export default function App() {
             
               {/* Left Controls (Avatar) */}
             <LeftControls 
-              currentItem={currentTrack || items[activeIndex]} 
+              currentItem={currentTrack || (items[activeIndex] || items[0])} 
               isPlaying={isPlaying}
               setIsPlaying={togglePlay}
               getImageUrl={getImageUrl}
