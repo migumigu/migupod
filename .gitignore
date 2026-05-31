@@ -1,9 +1,50 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 build/
 dist/
 coverage/
-.DS_Store
-*.log
-log.txt
+
+# Environment variables (contains secrets)
 .env*
 !.env.example
+
+# Logs
+*.log
+log.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Trae AI - Optional: uncomment if you want to track .trae config in git
+# .trae/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.cache/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
