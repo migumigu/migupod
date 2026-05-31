@@ -151,8 +151,6 @@ export default function App() {
     accent: string;
   } | null>(null);
   
-  // Display state for left controls (avatar)
-  const [displayedItem, setDisplayedItem] = useState<MediaItem | null>(null);
   const activeLyricRef = useRef<HTMLParagraphElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -160,14 +158,6 @@ export default function App() {
     const nextLine = lyrics[index + 1];
     return currentTime >= line.time && (!nextLine || currentTime < nextLine.time);
   }) : -1;
-
-  // Update displayed item (for avatar) - ensure synchronization
-  useEffect(() => {
-    // First, immediately update when activeIndex changes (for accuracy)
-    if (items[activeIndex]) {
-      setDisplayedItem(items[activeIndex]);
-    }
-  }, [activeIndex, items]);
 
   // Track fullscreen state
   useEffect(() => {
@@ -831,8 +821,8 @@ export default function App() {
 
             {/* Right Controls (Favorite, Mode, Navigation, Playlist, Lyrics) */}
             <RightControls
-              isFavorite={favorites.has(currentTrack?.Id || (displayedItem || items[activeIndex]).Id)}
-              onToggleFavorite={() => toggleFavorite(currentTrack?.Id || (displayedItem || items[activeIndex]).Id)}
+              isFavorite={favorites.has(currentTrack?.Id || items[activeIndex]?.Id)}
+              onToggleFavorite={() => toggleFavorite(currentTrack?.Id || items[activeIndex]?.Id)}
               playMode={playMode}
               onNextMode={nextMode}
               onNext={handleNext}
@@ -845,7 +835,9 @@ export default function App() {
                   setLoadingSongs(false);
                 } else {
                   // If not playing, show the songs of the focused item
-                  handleItemClick(displayedItem || items[activeIndex]);
+                  if (items[activeIndex]) {
+                    handleItemClick(items[activeIndex]);
+                  }
                 }
                 playClickSound();
               }}
