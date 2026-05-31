@@ -194,7 +194,10 @@ const VerticalCoverFlow = React.memo(({
     container: containerRef,
   });
 
-  // Precise index tracking - snap makes it simple
+  // Hysteresis buffer for index switching (prevents jitter at boundaries)
+  const hysteresisThreshold = 0.15; // Buffer zone: 15% of item height
+
+  // Precise index tracking with hysteresis for sound and active state
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
     // Ignore scroll events during initialization
     if (!isInitialized.current) return;
@@ -202,14 +205,32 @@ const VerticalCoverFlow = React.memo(({
     const totalItems = items.length;
     if (totalItems <= 1) return;
     
-    // Map 0-1 scroll progress to 0-(totalItems-1) index and round
+    // Map 0-1 scroll progress to 0-(totalItems-1) index
     let rawIndex = latest * (totalItems - 1);
-    rawIndex = Math.max(0, Math.min(totalItems - 1, rawIndex));
+    console.log('scrollYProgress:', latest, 'rawIndex:', rawIndex);
     
-    const newIndex = Math.round(rawIndex);
+    // Quick fix: adjust offset by -1 if we're consistently off by 1
+    rawIndex = Math.max(0, rawIndex - 1);
+    
+    const currentIndex = lastIndex.current;
+    
+    // Calculate distance to current index center
+    const distanceToCurrent = rawIndex - currentIndex;
+    
+    // Check if we should switch to adjacent index
+    let newIndex = currentIndex;
+    
+    if (distanceToCurrent > hysteresisThreshold) {
+      // Scrolled down past the buffer zone, move to next item
+      newIndex = Math.min(totalItems - 1, currentIndex + 1);
+    } else if (distanceToCurrent < -hysteresisThreshold) {
+      // Scrolled up past the buffer zone, move to previous item
+      newIndex = Math.max(0, currentIndex - 1);
+    }
+    // If within [-hysteresisThreshold, hysteresisThreshold], stay at current index
     
     // Only update and play sound if the index actually changes
-    if (newIndex !== lastIndex.current) {
+    if (newIndex !== currentIndex) {
       playClickSound();
       lastIndex.current = newIndex;
       setActiveIndex(newIndex);
