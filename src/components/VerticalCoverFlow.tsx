@@ -194,10 +194,7 @@ const VerticalCoverFlow = React.memo(({
     container: containerRef,
   });
 
-  // Hysteresis buffer for index switching (prevents jitter at boundaries)
-  const hysteresisThreshold = 0.15; // Buffer zone: 15% of item height
-
-  // Precise index tracking with hysteresis for sound and active state
+  // Precise index tracking - snap makes it simple
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
     // Ignore scroll events during initialization
     if (!isInitialized.current) return;
@@ -205,27 +202,14 @@ const VerticalCoverFlow = React.memo(({
     const totalItems = items.length;
     if (totalItems <= 1) return;
     
-    // Map 0-1 scroll progress to 0-(totalItems-1) index
-    const rawIndex = latest * (totalItems - 1);
-    const currentIndex = lastIndex.current;
+    // Map 0-1 scroll progress to 0-(totalItems-1) index and round
+    let rawIndex = latest * (totalItems - 1);
+    rawIndex = Math.max(0, Math.min(totalItems - 1, rawIndex));
     
-    // Calculate distance to current index center
-    const distanceToCurrent = rawIndex - currentIndex;
-    
-    // Check if we should switch to adjacent index
-    let newIndex = currentIndex;
-    
-    if (distanceToCurrent > hysteresisThreshold) {
-      // Scrolled down past the buffer zone, move to next item
-      newIndex = Math.min(totalItems - 1, currentIndex + 1);
-    } else if (distanceToCurrent < -hysteresisThreshold) {
-      // Scrolled up past the buffer zone, move to previous item
-      newIndex = Math.max(0, currentIndex - 1);
-    }
-    // If within [-hysteresisThreshold, hysteresisThreshold], stay at current index
+    const newIndex = Math.round(rawIndex);
     
     // Only update and play sound if the index actually changes
-    if (newIndex !== currentIndex) {
+    if (newIndex !== lastIndex.current) {
       playClickSound();
       lastIndex.current = newIndex;
       setActiveIndex(newIndex);
