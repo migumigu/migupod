@@ -121,6 +121,20 @@ const VerticalCoverFlow = React.memo(({
   const touchStartTime = useRef<number>(0);
   const isLongPress = useRef<boolean>(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isInitialized = useRef(false);
+  
+  // Sync lastIndex with activeIndex when it changes externally
+  React.useEffect(() => {
+    lastIndex.current = activeIndex;
+  }, [activeIndex]);
+  
+  // Initialization lock - ignore scroll events for first 500ms
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      isInitialized.current = true;
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Touch start handler
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -185,6 +199,9 @@ const VerticalCoverFlow = React.memo(({
 
   // Precise index tracking with hysteresis for sound and active state
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    // Ignore scroll events during initialization
+    if (!isInitialized.current) return;
+    
     const totalItems = items.length;
     if (totalItems <= 1) return;
     
