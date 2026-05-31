@@ -827,7 +827,7 @@ export default function App() {
             
               {/* Left Controls (Avatar) */}
             <LeftControls 
-              currentItem={currentTrack || displayedItem || items[activeIndex]} 
+              currentItem={currentTrack || items[activeIndex]} 
               isPlaying={isPlaying}
               setIsPlaying={togglePlay}
               getImageUrl={getImageUrl}
@@ -1285,6 +1285,10 @@ const LeftControls = React.memo(({
   return (
     <div className="fixed bottom-6 left-6 z-30 flex items-center gap-4">
       <motion.div
+        key={currentItem.Id}
+        initial={{ opacity: 0.6, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.5, ease: [0.25, 0.1, 0.25, 1] }}
         className="relative cursor-pointer group"
         onClick={() => setIsPlaying()}
       >
@@ -1293,7 +1297,7 @@ const LeftControls = React.memo(({
             src={artistImageUrl}
             alt="Artist"
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover rounded-xl"
+            className="w-full h-full object-cover rounded-xl transition-opacity duration-1000"
           />
         </div>
 
