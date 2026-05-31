@@ -8,8 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Music, User, Settings, Loader2, ChevronRight, Search, Play, X, Server, Key, Volume2, Heart, Shuffle, Repeat, Repeat1, Pause, ListMusic, Clock, Mic2, Maximize2 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { MediaConfig, MediaItem, MediaProvider, LyricLine } from './types';
-import { fetchEmbyItems, getImageUrl as getEmbyImageUrl, validateEmbyConnection, fetchSongsForItem as fetchEmbySongs, getStreamUrl as getEmbyStreamUrl, fetchEmbyLyrics } from './services/emby';
-import { fetchPlexItems, getPlexImageUrl, validatePlexConnection, fetchPlexSongs, getPlexStreamUrl, fetchPlexLyrics } from './services/plex';
+import { emby, plex, isMockMode } from './services';
 import VerticalCoverFlow from './components/VerticalCoverFlow';
 
 type NavTab = 'Albums' | 'Artists' | 'Playlists';
@@ -176,13 +175,13 @@ export default function App() {
   const getImageUrl = useCallback((item: MediaItem) => {
     if (!config) return '';
     if (config.provider === 'Plex') {
-      return getPlexImageUrl(config, item.Thumb || item.ImageTags?.Primary || '');
+      return plex.getPlexImageUrl(config, item.Thumb || item.ImageTags?.Primary || '');
     }
     // For Emby: use AlbumId for songs if available, otherwise use item's own Id
     // Songs may not have their own image, use album image instead
     const imageId = item.AlbumId || item.Id;
     const imageTag = item.ImageTags?.Primary || '';
-    return getEmbyImageUrl(config, imageId, imageTag);
+    return emby.getImageUrl(config, imageId, imageTag);
   }, [config]);
 
   // Extract dominant color from image
@@ -276,20 +275,20 @@ export default function App() {
   const getStreamUrl = useCallback((item: MediaItem) => {
     if (!config) return '';
     if (config.provider === 'Plex') {
-      return getPlexStreamUrl(config, item.Key || '');
+      return plex.getPlexStreamUrl(config, item.Key || '');
     }
-    return getEmbyStreamUrl(config, item.Id);
+    return emby.getStreamUrl(config, item.Id);
   }, [config]);
 
   const fetchItems = (type: NavTab) => {
     if (!config) return Promise.resolve([]);
     const mediaType = type === 'Albums' ? 'MusicAlbum' : type === 'Artists' ? 'MusicArtist' : 'Playlist';
-    return config.provider === 'Plex' ? fetchPlexItems(config, mediaType) : fetchEmbyItems(config, mediaType);
+    return config.provider === 'Plex' ? plex.fetchPlexItems(config, mediaType) : emby.fetchEmbyItems(config, mediaType);
   };
 
   const fetchSongs = (item: MediaItem) => {
     if (!config) return Promise.resolve([]);
-    return config.provider === 'Plex' ? fetchPlexSongs(config, item) : fetchEmbySongs(config, item);
+    return config.provider === 'Plex' ? plex.fetchPlexSongs(config, item) : emby.fetchSongsForItem(config, item);
   };
 
   const fetchLyrics = async (item: MediaItem) => {
@@ -297,8 +296,8 @@ export default function App() {
     try {
       setLoadingLyrics(true);
       const result = config.provider === 'Plex' 
-        ? await fetchPlexLyrics(config, item.Id) 
-        : await fetchEmbyLyrics(config, item.Id);
+        ? await plex.fetchPlexLyrics(config, item.Id) 
+        : await emby.fetchEmbyLyrics(config, item.Id);
       
       if (result) {
         setRawLyrics(result);
@@ -613,9 +612,9 @@ export default function App() {
     try {
       let userId = '';
       if (provider === 'Plex') {
-        userId = await validatePlexConnection(serverUrl, apiKey);
+        userId = await plex.validatePlexConnection(serverUrl, apiKey);
       } else {
-        userId = await validateEmbyConnection(serverUrl, apiKey);
+        userId = await emby.validateEmbyConnection(serverUrl, apiKey);
       }
       
       const newConfig: MediaConfig = { provider, serverUrl, apiKey, userId };
@@ -628,6 +627,19 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  // Mock 模式下自动设置默认配置
+  useEffect(() => {
+    if (isMockMode() && !config) {
+      const mockConfig: MediaConfig = {
+        provider: 'Emby',
+        serverUrl: 'https://mock.server',
+        apiKey: 'mock-key',
+        userId: 'mock-user'
+      };
+      setConfig(mockConfig);
+    }
+  }, []);
 
   return (
     <div className="relative h-screen w-full flex flex-col overflow-hidden bg-black font-sans">
@@ -711,6 +723,12 @@ export default function App() {
       {/* Floating Header */}
       <header className="fixed top-0 left-0 right-0 z-40 px-6 pt-6 pb-6 pointer-events-none">
         <div className="max-w-md mx-auto flex items-center justify-between pointer-events-auto">
+          {isMockMode() && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-0 -translate-y-full flex items-center gap-2 bg-white/10 backdrop-blur-xl border border-white/10 px-3 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-[9px] uppercase tracking-widest text-white/60 font-bold">Mock Mode</span>
+            </div>
+          )}
           <button 
             onClick={() => setShowSidebar(true)}
             className="p-3 rounded-full bg-white/5 backdrop-blur-2xl border border-white/10 hover:bg-white/10 transition-all active:scale-90"
