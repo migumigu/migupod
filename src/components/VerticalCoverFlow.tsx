@@ -121,6 +121,15 @@ const VerticalCoverFlow = React.memo(({
   const touchStartTime = useRef<number>(0);
   const isLongPress = useRef<boolean>(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isInitialized = useRef(false);
+  
+  // Initialization lock: ignore first 500ms to prevent jitter
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      isInitialized.current = true;
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Touch start handler
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -180,35 +189,20 @@ const VerticalCoverFlow = React.memo(({
     container: containerRef,
   });
 
-  // Hysteresis buffer for index switching (prevents jitter at boundaries)
-  const hysteresisThreshold = 0.15; // Buffer zone: 15% of item height
-
-  // Precise index tracking with hysteresis for sound and active state
+  // Simple and precise index tracking (scroll-snap already aligns items)
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    // Ignore scroll events during initialization
+    if (!isInitialized.current) return;
+    
     const totalItems = items.length;
     if (totalItems <= 1) return;
     
-    // Map 0-1 scroll progress to 0-(totalItems-1) index
-    const rawIndex = latest * (totalItems - 1);
-    const currentIndex = lastIndex.current;
-    
-    // Calculate distance to current index center
-    const distanceToCurrent = rawIndex - currentIndex;
-    
-    // Check if we should switch to adjacent index
-    let newIndex = currentIndex;
-    
-    if (distanceToCurrent > hysteresisThreshold) {
-      // Scrolled down past the buffer zone, move to next item
-      newIndex = Math.min(totalItems - 1, currentIndex + 1);
-    } else if (distanceToCurrent < -hysteresisThreshold) {
-      // Scrolled up past the buffer zone, move to previous item
-      newIndex = Math.max(0, currentIndex - 1);
-    }
-    // If within [-hysteresisThreshold, hysteresisThreshold], stay at current index
+    // Map 0-1 scroll progress to 0-(totalItems-1) index, then round to nearest
+    let rawIndex = latest * (totalItems - 1);
+    const newIndex = Math.max(0, Math.min(totalItems - 1, Math.round(rawIndex)));
     
     // Only update and play sound if the index actually changes
-    if (newIndex !== currentIndex) {
+    if (newIndex !== lastIndex.current) {
       playClickSound();
       lastIndex.current = newIndex;
       setActiveIndex(newIndex);
