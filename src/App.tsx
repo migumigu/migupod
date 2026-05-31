@@ -10,6 +10,7 @@ import { cn } from './lib/utils';
 import { MediaConfig, MediaItem, MediaProvider, LyricLine } from './types';
 import { fetchEmbyItems, getImageUrl as getEmbyImageUrl, validateEmbyConnection, fetchSongsForItem as fetchEmbySongs, getStreamUrl as getEmbyStreamUrl, fetchEmbyLyrics } from './services/emby';
 import { fetchPlexItems, getPlexImageUrl, validatePlexConnection, fetchPlexSongs, getPlexStreamUrl, fetchPlexLyrics } from './services/plex';
+import { service as mediaService } from './services';
 import VerticalCoverFlow from './components/VerticalCoverFlow';
 
 type NavTab = 'Albums' | 'Artists' | 'Playlists';
@@ -174,6 +175,10 @@ export default function App() {
 
   // Provider specific helpers
   const getImageUrl = useCallback((item: MediaItem) => {
+    // In mock mode, use image tags already contains full URLs
+    if (import.meta.env.VITE_USE_MOCK === 'true') {
+      return item.ImageTags?.Primary || '';
+    }
     if (!config) return '';
     if (config.provider === 'Plex') {
       return getPlexImageUrl(config, item.Thumb || item.ImageTags?.Primary || '');
@@ -274,6 +279,9 @@ export default function App() {
   }, [currentTrack, isPlaying, getImageUrl, extractDominantColor]);
 
   const getStreamUrl = useCallback((item: MediaItem) => {
+    if (import.meta.env.VITE_USE_MOCK === 'true') {
+      return 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+    }
     if (!config) return '';
     if (config.provider === 'Plex') {
       return getPlexStreamUrl(config, item.Key || '');
@@ -281,24 +289,38 @@ export default function App() {
     return getEmbyStreamUrl(config, item.Id);
   }, [config]);
 
-  const fetchItems = (type: NavTab) => {
+  const fetchItems = async (type: NavTab) => {
+    if (import.meta.env.VITE_USE_MOCK === 'true') {
+      if (type === 'Albums') return await mediaService.getAllAlbums();
+      if (type === 'Artists') return await mediaService.getAllArtists();
+      return await mediaService.getAllPlaylists();
+    }
     if (!config) return Promise.resolve([]);
     const mediaType = type === 'Albums' ? 'MusicAlbum' : type === 'Artists' ? 'MusicArtist' : 'Playlist';
     return config.provider === 'Plex' ? fetchPlexItems(config, mediaType) : fetchEmbyItems(config, mediaType);
   };
 
-  const fetchSongs = (item: MediaItem) => {
+  const fetchSongs = async (item: MediaItem) => {
+    if (import.meta.env.VITE_USE_MOCK === 'true') {
+      return await mediaService.getSongs(item.Id);
+    }
     if (!config) return Promise.resolve([]);
     return config.provider === 'Plex' ? fetchPlexSongs(config, item) : fetchEmbySongs(config, item);
   };
 
   const fetchLyrics = async (item: MediaItem) => {
-    if (!config) return null;
     try {
       setLoadingLyrics(true);
-      const result = config.provider === 'Plex' 
-        ? await fetchPlexLyrics(config, item.Id) 
-        : await fetchEmbyLyrics(config, item.Id);
+      let result: string | null;
+      if (import.meta.env.VITE_USE_MOCK === 'true') {
+        result = await mediaService.getLyrics(item.Id);
+      } else if (!config) {
+        result = null;
+      } else {
+        result = config.provider === 'Plex' 
+          ? await fetchPlexLyrics(config, item.Id) 
+          : await fetchEmbyLyrics(config, item.Id);
+      }
       
       if (result) {
         setRawLyrics(result);
@@ -320,7 +342,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (config) {
+    // In mock mode, load items even without config
+    if (config || import.meta.env.VITE_USE_MOCK === 'true') {
       loadItems();
     }
   }, [config, activeTab, sortConfig]);
@@ -566,7 +589,8 @@ export default function App() {
   }, [config]);
 
   const loadItems = async () => {
-    if (!config || isLoadingRef.current) return;
+    if (isLoadingRef.current) return;
+    if (!(import.meta.env.VITE_USE_MOCK === 'true') && !config) return;
     
     isLoadingRef.current = true;
     setLoading(true);
@@ -767,7 +791,7 @@ export default function App() {
           <>
             <VerticalCoverFlow
               items={items}
-              config={config!}
+              config={config}
               activeIndex={activeIndex}
               setActiveIndex={setActiveIndex}
               onItemClick={handleItemClick}

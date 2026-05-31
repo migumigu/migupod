@@ -5,7 +5,7 @@ import { MediaConfig, MediaItem } from '../types';
 interface CoverItemProps {
   item: MediaItem;
   index: number;
-  config: MediaConfig;
+  config?: MediaConfig;
   containerRef: React.RefObject<HTMLDivElement | null>;
   isActive: boolean;
   onItemClick: (item: MediaItem) => void;
@@ -98,7 +98,7 @@ const CoverItem = React.memo(({
 
 interface VerticalCoverFlowProps {
   items: MediaItem[];
-  config: MediaConfig;
+  config?: MediaConfig;
   activeIndex: number;
   setActiveIndex: (i: number) => void;
   onItemClick: (item: MediaItem) => void;
