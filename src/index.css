@@ -5,9 +5,9 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", serif;
   --media-session-bg: #0a0502;
-  --bg-primary: rgb(30, 30, 40);
-  --bg-secondary: rgb(20, 20, 30);
-  --bg-accent: rgb(60, 60, 80);
+  --bg-primary: rgb(45, 25, 60);
+  --bg-secondary: rgb(25, 35, 55);
+  --bg-accent: rgb(80, 50, 100);
 }
 
 @layer base {
@@ -17,15 +17,26 @@
   }
 }
 
-/* 智能背景色 */
+/* 智能背景色 - 更有感知度的版本 */
 .smart-background {
-  background: radial-gradient(
-    ellipse at 20% 20%,
-    var(--bg-primary, rgb(30, 30, 40)) 0%,
-    var(--bg-secondary, rgb(20, 20, 30)) 30%,
-    #050505 70%,
-    #000000 100%
-  );
+  background: 
+    radial-gradient(
+      ellipse at 25% 30%,
+      var(--bg-accent, rgb(80, 50, 100)) 0%,
+      var(--bg-primary, rgb(45, 25, 60)) 25%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 75% 20%,
+      var(--bg-secondary, rgb(25, 35, 55)) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 50% 100%,
+      var(--bg-primary, rgb(45, 25, 60)) 0%,
+      transparent 45%
+    ),
+    #000000;
 }
 
 /* 默认纯黑背景 */

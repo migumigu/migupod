@@ -58,23 +58,30 @@ export function hslToRgb(h: number, s: number, l: number): { r: number; g: numbe
 }
 
 /**
- * 降低饱和度和亮度以适应深色主题
+ * 优化颜色以适应深色主题 - 更有感知度的版本
  */
-export function desaturateAndDarken(r: number, g: number, b: number, targetSat = 0.3, targetLight = 0.18) {
+export function enhanceColorForBackground(r: number, g: number, b: number) {
   const hsl = rgbToHsl(r, g, b);
-  hsl.s = Math.min(hsl.s, targetSat);
-  hsl.l = Math.min(hsl.l, targetLight);
+  
+  // 保持较高饱和度，让颜色更明显
+  hsl.s = Math.max(hsl.s, 0.4);
+  // 调整到合适的亮度 - 深色但有明显色相
+  hsl.l = Math.max(Math.min(hsl.l, 0.28), 0.15);
+  
   return hslToRgb(hsl.h, hsl.s, hsl.l);
 }
 
 /**
- * 生成互补色
+ * 生成和谐的次色（类似色而非互补色，更高级）
  */
-export function getComplementaryColor(r: number, g: number, b: number) {
+export function getAnalogousColor(r: number, g: number, b: number) {
   const hsl = rgbToHsl(r, g, b);
-  hsl.h = (hsl.h + 0.5) % 1;
-  hsl.s = Math.max(hsl.s * 0.7, 0.15);
-  hsl.l = Math.max(hsl.l * 0.6, 0.12);
+  // 顺时针旋转 30 度，产生和谐的类似色
+  hsl.h = (hsl.h + 0.08333) % 1;
+  // 保持高饱和度
+  hsl.s = Math.max(hsl.s, 0.35);
+  // 稍暗一点
+  hsl.l = Math.max(hsl.l * 0.85, 0.12);
   return hslToRgb(hsl.h, hsl.s, hsl.l);
 }
 
@@ -99,44 +106,57 @@ export async function extractEnhancedColors(imageUrl: string): Promise<{
     
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = 100;
-      canvas.height = 100;
+      canvas.width = 150;  // 提高采样精度
+      canvas.height = 150;
       const ctx = canvas.getContext('2d');
       
       if (ctx) {
-        ctx.drawImage(img, 0, 0, 100, 100);
-        const imageData = ctx.getImageData(0, 0, 100, 100);
+        ctx.drawImage(img, 0, 0, 150, 150);
+        const imageData = ctx.getImageData(0, 0, 150, 150);
         const data = imageData.data;
-        const colorMap = new Map<string, number>();
+        const colorMap = new Map<string, { count: number; sat: number }>();
 
-        // 统计颜色
+        // 统计颜色，优先保留饱和度高的颜色
         for (let i = 0; i < data.length; i += 4) {
-          const r = Math.floor(data[i] / 32) * 32;
-          const g = Math.floor(data[i + 1] / 32) * 32;
-          const b = Math.floor(data[i + 2] / 32) * 32;
-          const color = `${r},${g},${b}`;
-          colorMap.set(color, (colorMap.get(color) || 0) + 1);
+          const r = Math.floor(data[i] / 16) * 16;
+          const g = Math.floor(data[i + 1] / 16) * 16;
+          const b = Math.floor(data[i + 2] / 16) * 16;
+          
+          // 计算饱和度
+          const hsl = rgbToHsl(r, g, b);
+          
+          // 跳过太暗或太亮的颜色
+          if (hsl.l > 0.08 && hsl.l < 0.92) {
+            const color = `${r},${g},${b}`;
+            const existing = colorMap.get(color);
+            colorMap.set(color, { 
+              count: (existing?.count || 0) + 1, 
+              sat: hsl.s 
+            });
+          }
         }
 
-        // 找到主色
-        let dominantColor = { r: 0, g: 0, b: 0 };
-        let maxCount = 0;
+        // 找到最佳主色（兼顾出现频率和饱和度）
+        let dominantColor = { r: 30, g: 30, b: 40 };
+        let bestScore = 0;
         
-        colorMap.forEach((count, colorStr) => {
-          if (count > maxCount) {
-            maxCount = count;
-            const [r, g, b] = colorStr.split(',').map(Number);
+        colorMap.forEach((value, colorStr) => {
+          const [r, g, b] = colorStr.split(',').map(Number);
+          // 评分公式：频率 * 饱和度权重
+          const score = value.count * (0.5 + value.sat * 1.5);
+          if (score > bestScore) {
+            bestScore = score;
             dominantColor = { r, g, b };
           }
         });
 
         // 优化主色
-        const primaryRgb = desaturateAndDarken(dominantColor.r, dominantColor.g, dominantColor.b);
-        const secondaryRgb = getComplementaryColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+        const primaryRgb = enhanceColorForBackground(dominantColor.r, dominantColor.g, dominantColor.b);
+        const secondaryRgb = getAnalogousColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
         
-        // 强调色（稍亮一点）
+        // 强调色（明亮版本）
         const accentHsl = rgbToHsl(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        accentHsl.l = Math.min(accentHsl.l * 1.8, 0.35);
+        accentHsl.l = Math.min(accentHsl.l * 2.2, 0.45);
         const accentRgb = hslToRgb(accentHsl.h, accentHsl.s, accentHsl.l);
 
         resolve({
@@ -146,18 +166,18 @@ export async function extractEnhancedColors(imageUrl: string): Promise<{
         });
       } else {
         resolve({
-          primary: 'rgb(30, 30, 40)',
-          secondary: 'rgb(20, 20, 30)',
-          accent: 'rgb(60, 60, 80)'
+          primary: 'rgb(45, 25, 60)',
+          secondary: 'rgb(25, 35, 55)',
+          accent: 'rgb(80, 50, 100)'
         });
       }
     };
 
     img.onerror = () => {
       resolve({
-        primary: 'rgb(30, 30, 40)',
-        secondary: 'rgb(20, 20, 30)',
-        accent: 'rgb(60, 60, 80)'
+        primary: 'rgb(45, 25, 60)',
+        secondary: 'rgb(25, 35, 55)',
+        accent: 'rgb(80, 50, 100)'
       });
     };
 
