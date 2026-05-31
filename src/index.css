@@ -13,7 +13,7 @@
 @layer base {
   body {
     @apply text-white antialiased overflow-hidden;
-    transition: background 800ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background 1800ms cubic-bezier(0.25, 0.1, 0.25, 1);
   }
 }
 
