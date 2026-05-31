@@ -27,8 +27,8 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Trae AI - Optional: uncomment if you want to track .trae config in git
-# .trae/
+# Trae AI - 不纳入版本管理
+.trae/
 
 # Temporary files
 tmp/
