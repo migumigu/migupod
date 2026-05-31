@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Music, User, Settings, Loader2, ChevronRight, Search, Play, X, Server, Key, Volume2, Heart, Shuffle, Repeat, Repeat1, Pause, ListMusic, Clock, Mic2, Maximize2 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { extractEnhancedColors } from './lib/color-utils';
 import { MediaConfig, MediaItem, MediaProvider, LyricLine } from './types';
 import { emby, plex, isMockMode } from './services';
 import VerticalCoverFlow from './components/VerticalCoverFlow';
@@ -138,6 +139,17 @@ export default function App() {
   const [lyrics, setLyrics] = useState<LyricLine[] | null>(null);
   const [loadingLyrics, setLoadingLyrics] = useState(false);
   const [rawLyrics, setRawLyrics] = useState<string | null>(null);
+  
+  // 动态背景状态
+  const [dynamicBackgroundEnabled, setDynamicBackgroundEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('dynamic-background');
+    return saved !== 'false'; // 默认开启
+  });
+  const [backgroundColors, setBackgroundColors] = useState<{
+    primary: string;
+    secondary: string;
+    accent: string;
+  } | null>(null);
   
   // Display state for left controls (avatar)
   const [displayedItem, setDisplayedItem] = useState<MediaItem | null>(null);
@@ -641,13 +653,33 @@ export default function App() {
     }
   }, []);
 
+  // 更新背景色 based on current track or selected item
+  useEffect(() => {
+    if (!dynamicBackgroundEnabled) {
+      setBackgroundColors(null);
+      document.body.classList.remove('smart-background');
+      document.body.classList.add('default-background');
+      return;
+    }
+
+    // 确定颜色源
+    const sourceItem = (currentTrack && isPlaying) ? currentTrack : items[activeIndex];
+    
+    if (sourceItem) {
+      const imageUrl = getImageUrl(sourceItem);
+      extractEnhancedColors(imageUrl).then(colors => {
+        setBackgroundColors(colors);
+        document.body.classList.add('smart-background');
+        document.body.classList.remove('default-background');
+        document.body.style.setProperty('--bg-primary', colors.primary);
+        document.body.style.setProperty('--bg-secondary', colors.secondary);
+        document.body.style.setProperty('--bg-accent', colors.accent);
+      });
+    }
+  }, [currentTrack, isPlaying, activeIndex, items, getImageUrl, dynamicBackgroundEnabled]);
+
   return (
-    <div className="relative h-screen w-full flex flex-col overflow-hidden bg-black font-sans">
-      {/* Atmospheric Background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-900/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-900/10 blur-[120px] rounded-full" />
-      </div>
+    <div className="relative h-screen w-full flex flex-col overflow-hidden font-sans">
 
       {/* Fullscreen Top Bar - Shows when in fullscreen mode with current track info */}
       {isFullscreen && currentTrack && (
@@ -1138,6 +1170,36 @@ export default function App() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </section>
+
+                <section className="space-y-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1 h-4 bg-white/20 rounded-full" />
+                    <h3 className="text-[11px] uppercase tracking-[0.3em] font-black text-white/40">Visual</h3>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-widest opacity-50">Dynamic Background</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDynamicBackgroundEnabled(prev => {
+                            const newValue = !prev;
+                            localStorage.setItem('dynamic-background', String(newValue));
+                            return newValue;
+                          });
+                        }}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                          dynamicBackgroundEnabled ? 'bg-white' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-black transition-transform ${
+                          dynamicBackgroundEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
                   </div>
                 </section>
 

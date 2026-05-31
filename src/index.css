@@ -5,14 +5,32 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", serif;
   --media-session-bg: #0a0502;
+  --bg-primary: rgb(30, 30, 40);
+  --bg-secondary: rgb(20, 20, 30);
+  --bg-accent: rgb(60, 60, 80);
 }
 
 @layer base {
   body {
-    @apply bg-[#0a0502] text-white antialiased overflow-hidden;
-    background-color: var(--media-session-bg);
-    transition: background-color 0.5s ease;
+    @apply text-white antialiased overflow-hidden;
+    transition: background 800ms cubic-bezier(0.4, 0, 0.2, 1);
   }
+}
+
+/* 智能背景色 */
+.smart-background {
+  background: radial-gradient(
+    ellipse at 20% 20%,
+    var(--bg-primary, rgb(30, 30, 40)) 0%,
+    var(--bg-secondary, rgb(20, 20, 30)) 30%,
+    #050505 70%,
+    #000000 100%
+  );
+}
+
+/* 默认纯黑背景 */
+.default-background {
+  background: #000000;
 }
 
 .perspective-1000 {
